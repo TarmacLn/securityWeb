@@ -5,7 +5,7 @@ class UserStore {
     private message = '';
     private type: 'success' | 'danger' = 'success';
 
-    private timeout: NodeJS.Timeout | null = null;
+    private timeout: number | null = null;
 
     constructor() {
         makeAutoObservable(this);
