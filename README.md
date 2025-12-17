@@ -47,3 +47,8 @@ server {
     }
 }
 ```
+
+
+
+# After fork 
+

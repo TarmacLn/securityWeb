@@ -1,0 +1,13 @@
+services:
+  web:
+    build: .
+    ports:
+      - 9191:9191
+    extra_hosts:
+      - "backend:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9191/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
