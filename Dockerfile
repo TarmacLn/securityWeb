@@ -48,6 +48,11 @@ COPY nginx.conf /etc/nginx/nginx.conf
 # Copy built application from builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
+RUN mkdir -p /etc/nginx/ssl/
+COPY ssl/ca-chain.cert.pem /etc/nginx/ssl/ca-chain.cert.pem
+COPY ssl/server.key.pem /etc/nginx/ssl/server.key.pem
+
+
 # export 9191 port
 EXPOSE 9191
 
