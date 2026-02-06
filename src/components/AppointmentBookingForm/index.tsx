@@ -1,10 +1,14 @@
-import { Box, Divider, Textarea, Typography, Card, CardActions, CardOverflow, Stack } from "@mui/joy";
+import { Box, Divider, Textarea, Typography, Card, CardActions, CardOverflow, Stack, FormHelperText } from "@mui/joy";
 import CheckIcon from '@mui/icons-material/Check';
 import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import { useDoctorAvailability } from "../../hooks/availability";
 import { LowercaseType } from '../../hooks/lowercase';
 import { Availability } from '../../types';
+import { validateFreeFormText } from "../../utils/validation";
+import { sanitizeTextarea, limitLength } from "../../utils/sanitization";
+
+const MAX_REASON_LENGTH = 500;
 
 interface AppointmentBookingFormProps {
     doctorId: string;
@@ -13,6 +17,8 @@ interface AppointmentBookingFormProps {
     selectedSlot: number | null;
     setSelectedSlot: (slot: number | null) => void;
     actions?: React.ReactNode;
+    reasonError?: string;
+    setReasonError?: (error: string) => void;
 }
 
 export default function AppointmentBookingForm({
@@ -22,8 +28,37 @@ export default function AppointmentBookingForm({
     selectedSlot,
     setSelectedSlot,
     actions,
+    reasonError = '',
+    setReasonError,
 }: AppointmentBookingFormProps) {
     const { availabilities } = useDoctorAvailability(doctorId);
+
+    const handleReasonChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value;
+        const limitedValue = limitLength(value, MAX_REASON_LENGTH);
+        setReason(limitedValue);
+        
+        if (reasonError && setReasonError) {
+            setReasonError('');
+        }
+    };
+
+    const validateReasonField = (): boolean => {
+        const validation = validateFreeFormText(reason, 0, MAX_REASON_LENGTH, false, 'Reason');
+        if (!validation.isValid && setReasonError) {
+            setReasonError(validation.error || '');
+            return false;
+        }
+        return true;
+    };
+
+    const getSanitizedReason = (): string => {
+        return sanitizeTextarea(reason);
+    };
+
+    // Expose validation and sanitization to parent if needed
+    (AppointmentBookingForm as any).validateReason = validateReasonField;
+    (AppointmentBookingForm as any).getSanitizedReason = getSanitizedReason;
 
     return (
         <>
@@ -38,8 +73,17 @@ export default function AppointmentBookingForm({
                         minRows={3}
                         placeholder="Enter the reason for your appointment (optional)"
                         value={reason}
-                        onChange={(e) => setReason(e.target.value)}
+                        onChange={handleReasonChange}
                     />
+                    <FormHelperText
+                        sx={{
+                            mt: 0.75,
+                            fontSize: 'xs',
+                            color: reasonError ? 'danger.500' : 'inherit',
+                        }}
+                    >
+                        {reasonError || `${MAX_REASON_LENGTH - reason.length} characters remaining`}
+                    </FormHelperText>
                 </Box>
             </Card>
             <Card>

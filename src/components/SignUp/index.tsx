@@ -2,6 +2,7 @@ import { MedicalServices, Person } from '@mui/icons-material';
 import {
     Button,
     FormControl,
+    FormHelperText,
     FormLabel,
     Input,
     List,
@@ -19,6 +20,21 @@ import { Link, useNavigate } from 'react-router';
 import { notificationStore, userStore } from '../../stores';
 import { OfficeLocation, Speciality, UserType } from '../../types';
 import type { SignInFormElement } from '../types';
+import {
+    validateEmail,
+    validatePassword,
+    validateFullName,
+    validateLicenseID,
+    validateAMKA,
+    validateSelectField,
+} from '../../utils/validation';
+import {
+    sanitizeEmail,
+    sanitizePassword,
+    sanitizeName,
+    sanitizeAlphanumeric,
+    sanitizeNumber,
+} from '../../utils/sanitization';
 
 const userTypes = [
     {
@@ -33,19 +49,94 @@ const userTypes = [
     },
 ];
 
+interface FormErrors {
+    email?: string;
+    password?: string;
+    fullName?: string;
+    speciality?: string;
+    licenceID?: string;
+    officeLocation?: string;
+    amka?: string;
+}
+
 export default function SignUp() {
     const [userType, setUserType] = useState(userTypes[0].value);
+    const [errors, setErrors] = useState<FormErrors>({});
     const navigate = useNavigate();
 
+    const validateForm = (formData: Record<string, any>): boolean => {
+        const newErrors: FormErrors = {};
+
+        const emailValidation = validateEmail(formData.email || '');
+        if (!emailValidation.isValid) {
+            newErrors.email = emailValidation.error;
+        }
+
+        const passwordValidation = validatePassword(formData.password || '');
+        if (!passwordValidation.isValid) {
+            newErrors.password = passwordValidation.error;
+        }
+
+        const nameValidation = validateFullName(formData.fullName || '');
+        if (!nameValidation.isValid) {
+            newErrors.fullName = nameValidation.error;
+        }
+
+        // Doctor
+        if (userType === UserType.Doctor) {
+            const specialityValidation = validateSelectField(
+                formData.speciality || '',
+            );
+            if (!specialityValidation.isValid) {
+                newErrors.speciality = specialityValidation.error;
+            }
+
+            const licenseValidation = validateLicenseID(formData.licenceID || '');
+            if (!licenseValidation.isValid) {
+                newErrors.licenceID = licenseValidation.error;
+            }
+
+            const locationValidation = validateSelectField(
+                formData.officeLocation || '',
+            );
+            if (!locationValidation.isValid) {
+                newErrors.officeLocation = locationValidation.error;
+            }
+        }
+
+        //Patient
+        if (userType === UserType.Patient) {
+            const amkaValidation = validateAMKA(formData.amka || '');
+            if (!amkaValidation.isValid) {
+                newErrors.amka = amkaValidation.error;
+            }
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
     const handleSubmit = async (event: React.FormEvent<SignInFormElement>) => {
-        event.preventDefault(); // This prevents the actual form submission
+        event.preventDefault();
         const formData = new FormData(event.currentTarget);
         const formJson = Object.fromEntries((formData as any).entries());
 
-        const registered = await userStore.register({
-            ...formJson,
+        if (!validateForm(formJson)) {
+            return;
+        }
+
+        const sanitizedData = {
+            email: sanitizeEmail(formJson.email),
+            password: sanitizePassword(formJson.password),
+            fullName: sanitizeName(formJson.fullName),
+            speciality: formJson.speciality,
+            licenceID: sanitizeAlphanumeric(formJson.licenceID),
+            officeLocation: formJson.officeLocation,
+            amka: sanitizeNumber(formJson.amka),
             userType,
-        } as any);
+        };
+
+        const registered = await userStore.register(sanitizedData as any);
         if (registered) {
             notificationStore.setNotification(
                 true,
@@ -121,21 +212,38 @@ export default function SignUp() {
                 </RadioGroup>
                 <form onSubmit={handleSubmit}>
                     <Stack spacing={2}>
-                        <FormControl required>
+                        <FormControl required error={!!errors.email}>
                             <FormLabel>Email</FormLabel>
                             <Input type='email' name='email' />
+                            {errors.email && (
+                                <FormHelperText>{errors.email}</FormHelperText>
+                            )}
                         </FormControl>
-                        <FormControl required>
+                        <FormControl required error={!!errors.password}>
                             <FormLabel>Password</FormLabel>
-                            <Input type='password' name='password' />
+                            <Input
+                                type='password'
+                                name='password'
+                                slotProps={{
+                                    input: {
+                                        autoComplete: 'new-password',
+                                    },
+                                }}
+                            />
+                            {errors.password && (
+                                <FormHelperText>{errors.password}</FormHelperText>
+                            )}
                         </FormControl>
-                        <FormControl required>
+                        <FormControl required error={!!errors.fullName}>
                             <FormLabel>Full Name</FormLabel>
                             <Input type='text' name='fullName' />
+                            {errors.fullName && (
+                                <FormHelperText>{errors.fullName}</FormHelperText>
+                            )}
                         </FormControl>
                         {userType === 'DOCTOR' && (
                             <>
-                                <FormControl required>
+                                <FormControl required error={!!errors.speciality}>
                                     <FormLabel>Specialization</FormLabel>
                                     <Select
                                         name='speciality'
@@ -158,12 +266,28 @@ export default function SignUp() {
                                             </Option>
                                         ))}
                                     </Select>
+                                    {errors.speciality && (
+                                        <FormHelperText>
+                                            {errors.speciality}
+                                        </FormHelperText>
+                                    )}
                                 </FormControl>
-                                <FormControl required>
+                                <FormControl
+                                    required
+                                    error={!!errors.licenceID}
+                                >
                                     <FormLabel>License ID</FormLabel>
                                     <Input type='text' name='licenceID' />
+                                    {errors.licenceID && (
+                                        <FormHelperText>
+                                            {errors.licenceID}
+                                        </FormHelperText>
+                                    )}
                                 </FormControl>
-                                <FormControl required>
+                                <FormControl
+                                    required
+                                    error={!!errors.officeLocation}
+                                >
                                     <FormLabel>Office Location</FormLabel>
                                     <Select
                                         name='officeLocation'
@@ -184,13 +308,21 @@ export default function SignUp() {
                                             ),
                                         )}
                                     </Select>
+                                    {errors.officeLocation && (
+                                        <FormHelperText>
+                                            {errors.officeLocation}
+                                        </FormHelperText>
+                                    )}
                                 </FormControl>
                             </>
                         )}
                         {userType === 'PATIENT' && (
-                            <FormControl required>
+                            <FormControl required error={!!errors.amka}>
                                 <FormLabel>AMKA</FormLabel>
                                 <Input type='text' name='amka' />
+                                {errors.amka && (
+                                    <FormHelperText>{errors.amka}</FormHelperText>
+                                )}
                             </FormControl>
                         )}
                         <Stack sx={{ gap: 4, mt: 2 }}>

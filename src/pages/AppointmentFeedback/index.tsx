@@ -5,6 +5,11 @@ import SectionTitle from "../../components/SectionTitle";
 import { useState } from "react";
 import MaterialRating from "../../components/MaterialRating";
 import { notificationStore } from "../../stores";
+import { validateFreeFormText } from "../../utils/validation";
+import { sanitizeTextarea } from "../../utils/sanitization";
+import { limitLength } from "../../utils/sanitization";
+
+const MAX_COMMENTS_LENGTH = 400;
 
 export default function AppointmentFeedback() {
     const { id } = useParams<{ id: string }>();
@@ -13,7 +18,18 @@ export default function AppointmentFeedback() {
     const { appointment, loading } = useAppointment(id);
     const { createRating, loading: creatingRating } = useCreateDoctorRating();
     const [comments, setComments] = useState<string>('');
+    const [commentsError, setCommentsError] = useState<string>('');
     const [rating, setRating] = useState<number>(0);
+
+    const handleCommentsChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        const value = e.target.value;
+        const limitedValue = limitLength(value, MAX_COMMENTS_LENGTH);
+        setComments(limitedValue);
+        
+        if (commentsError) {
+            setCommentsError('');
+        }
+    };
 
     const submitHandler = async () => {
         if (rating === 0) {
@@ -24,11 +40,19 @@ export default function AppointmentFeedback() {
             );
             return;
         }
+
+        const commentsValidation = validateFreeFormText(comments, 0, MAX_COMMENTS_LENGTH, false, 'Comments');
+        if (!commentsValidation.isValid) {
+            setCommentsError(commentsValidation.error || '');
+            return;
+        }
+
         if (appointment) {
+            const sanitizedComments = sanitizeTextarea(comments);
             await createRating({
                 appointmentID: appointment.appointmentid as number,
                 stars: rating,
-                comments,
+                comments: sanitizedComments,
             }, () => navigate('/history'));
         }
     };
@@ -68,10 +92,16 @@ export default function AppointmentFeedback() {
                             sx={{ mt: 1.5 }}
                             value={comments}
                             placeholder="Share details of your own personal experience with this doctor"
-                            onChange={(e) => setComments(e.target.value)}
+                            onChange={handleCommentsChange}
                         />
-                        <FormHelperText sx={{ mt: 0.75, fontSize: 'xs' }}>
-                            {400 - comments.length} characters remaining
+                        <FormHelperText
+                            sx={{
+                                mt: 0.75,
+                                fontSize: 'xs',
+                                color: commentsError ? 'danger.500' : 'inherit',
+                            }}
+                        >
+                            {commentsError || `${MAX_COMMENTS_LENGTH - comments.length} characters remaining`}
                         </FormHelperText>
                     </Stack>
                     {loading && <Typography>Loading...</Typography>}

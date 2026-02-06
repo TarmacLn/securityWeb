@@ -12,13 +12,14 @@ import CardActions from '@mui/joy/CardActions';
 import CardOverflow from '@mui/joy/CardOverflow';
 import Divider from '@mui/joy/Divider';
 import FormControl from '@mui/joy/FormControl';
+import FormHelperText from '@mui/joy/FormHelperText';
 import FormLabel from '@mui/joy/FormLabel';
 import IconButton from '@mui/joy/IconButton';
 import Input from '@mui/joy/Input';
 import Stack from '@mui/joy/Stack';
 import Typography from '@mui/joy/Typography';
 import { observer } from 'mobx-react-lite';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { userStore } from '../../stores';
 import {
     OfficeLocation,
@@ -28,14 +29,130 @@ import {
 } from '../../types';
 import SectionTitle from '../../components/SectionTitle';
 import SmartAvatar from '../../components/SmartAvatar';
+import {
+    validateEmail,
+    validateFullName,
+    validatePhone,
+    validateLicenseID,
+    validateAMKA,
+    validateFreeFormText,
+    validateSelectField,
+} from '../../utils/validation';
+import {
+    sanitizeEmail,
+    sanitizeName,
+    sanitizePhoneNumber,
+    sanitizeAlphanumeric,
+    sanitizeNumber,
+    sanitizeTextarea,
+} from '../../utils/sanitization';
+
+interface ProfileFormErrors {
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    licenceID?: string;
+    officeLocation?: string;
+    amka?: string;
+    bio?: string;
+    speciality?: string;
+}
 
 export default observer(function Profile() {
     const formRef = useRef<HTMLFormElement>(null);
+    const [errors, setErrors] = useState<ProfileFormErrors>({});
+    const [fullName, setFullName] = useState(userStore.fullName || '');
+    const [email, setEmail] = useState(userStore.email || '');
+    const [phone, setPhone] = useState(userStore.phone || '');
+    const [licenceID, setLicenceID] = useState(userStore.licenceID || '');
+    const [officeLocation, setOfficeLocation] = useState(userStore.officeLocation || '');
+    const [speciality, setSpeciality] = useState(userStore.speciality || '');
+    const [amka, setAmka] = useState(userStore.amka || '');
+    const [bio, setBio] = useState(userStore.bio || '');
+
+    const validateProfileForm = (data: Record<string, any>): boolean => {
+        const newErrors: ProfileFormErrors = {};
+
+        const nameValidation = validateFullName(data.fullName || '');
+        if (!nameValidation.isValid) {
+            newErrors.fullName = nameValidation.error;
+        }
+
+        const emailValidation = validateEmail(data.email || '');
+        if (!emailValidation.isValid) {
+            newErrors.email = emailValidation.error;
+        }
+
+        const phoneValidation = validatePhone(data.phone || '');
+        if (!phoneValidation.isValid) {
+            newErrors.phone = phoneValidation.error;
+        }
+
+        // Doctor
+        if (userStore.userType === UserType.Doctor) {
+            const licenseValidation = validateLicenseID(data.licenceID || '');
+            if (!licenseValidation.isValid) {
+                newErrors.licenceID = licenseValidation.error;
+            }
+
+            const bioValidation = validateFreeFormText(data.bio || '', 0, 1000, false, 'Bio');
+            if (!bioValidation.isValid) {
+                newErrors.bio = bioValidation.error;
+            }
+
+            const locationValidation = validateSelectField(
+                data.officeLocation || '',
+            );
+            if (!locationValidation.isValid) {
+                newErrors.officeLocation = locationValidation.error;
+            }
+        }
+
+        // Patient
+        if (userStore.userType === UserType.Patient) {
+            const amkaValidation = validateAMKA(data.amka || '');
+            if (!amkaValidation.isValid) {
+                newErrors.amka = amkaValidation.error;
+            }
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
     const submitHandler = async (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        const formData = new FormData(e.currentTarget);
-        const data = Object.fromEntries(formData.entries());
-        await userStore.updateUserData(data as unknown as UserData);
+        const data = {
+            fullName,
+            email,
+            phone,
+            licenceID,
+            officeLocation,
+            speciality,
+            amka,
+            bio,
+        };
+
+        if (!validateProfileForm(data)) {
+            return;
+        }
+
+        const sanitizedData: Partial<UserData> = {
+            fullName: sanitizeName(fullName),
+            email: sanitizeEmail(email),
+            phone: sanitizePhoneNumber(phone),
+            amka: amka ? sanitizeNumber(amka) : undefined,
+        };
+
+        // Only include doctor-specific fields if user is a doctor
+        if (userStore.userType === UserType.Doctor) {
+            sanitizedData.licenceID = licenceID ? sanitizeAlphanumeric(licenceID) : undefined;
+            sanitizedData.bio = bio ? sanitizeTextarea(bio) : undefined;
+            sanitizedData.officeLocation = officeLocation as OfficeLocation;
+            sanitizedData.speciality = speciality as Speciality;
+        }
+
+        await userStore.updateUserData(sanitizedData as UserData);
     };
 
     useEffect(() => {
@@ -149,18 +266,25 @@ export default observer(function Profile() {
                                             },
                                             gap: 2,
                                         }}
+                                        error={!!errors.fullName}
                                     >
                                         <Input
-                                            defaultValue={userStore.fullName}
+                                            value={fullName}
+                                            onChange={(e) => setFullName(e.target.value)}
                                             required
                                             size='sm'
                                             placeholder='Full name'
                                             name='fullName'
                                         />
+                                        {errors.fullName && (
+                                            <FormHelperText>
+                                                {errors.fullName}
+                                            </FormHelperText>
+                                        )}
                                     </FormControl>
                                 </Stack>
                                 <Stack direction='row' spacing={2}>
-                                    <FormControl sx={{ flex: 1 }}>
+                                    <FormControl sx={{ flex: 1 }} error={!!errors.email}>
                                         <FormLabel>Email</FormLabel>
                                         <Input
                                             size='sm'
@@ -169,26 +293,38 @@ export default observer(function Profile() {
                                                 <EmailRoundedIcon />
                                             }
                                             placeholder='email'
-                                            defaultValue={userStore.email}
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
                                             sx={{ flex: 1 }}
                                             name='email'
                                         />
+                                        {errors.email && (
+                                            <FormHelperText>
+                                                {errors.email}
+                                            </FormHelperText>
+                                        )}
                                     </FormControl>
-                                    <FormControl sx={{ flex: 1 }}>
+                                    <FormControl sx={{ flex: 1 }} error={!!errors.phone}>
                                         <FormLabel>Phone</FormLabel>
                                         <Input
-                                            defaultValue={userStore.phone}
+                                            value={phone}
+                                            onChange={(e) => setPhone(e.target.value)}
                                             startDecorator={<Phone />}
                                             size='sm'
                                             name='phone'
                                             placeholder='Phone'
                                         />
+                                        {errors.phone && (
+                                            <FormHelperText>
+                                                {errors.phone}
+                                            </FormHelperText>
+                                        )}
                                     </FormControl>
                                 </Stack>
                                 {userStore.userType === UserType.Doctor ? (
                                     <>
                                         <Stack direction='row' spacing={2}>
-                                            <FormControl sx={{ flex: 1 }}>
+                                            <FormControl sx={{ flex: 1 }} error={!!errors.speciality}>
                                                 <FormLabel>
                                                     Speciality
                                                 </FormLabel>
@@ -196,9 +332,8 @@ export default observer(function Profile() {
                                                     required
                                                     size='sm'
                                                     placeholder='Speciality'
-                                                    defaultValue={
-                                                        userStore.speciality
-                                                    }
+                                                    value={speciality}
+                                                    onChange={(_, newValue) => setSpeciality(newValue || '')}
                                                     name='speciality'
                                                     startDecorator={
                                                         <MedicalServicesIcon />
@@ -219,15 +354,19 @@ export default observer(function Profile() {
                                                         </Option>
                                                     ))}
                                                 </Select>
+                                                {errors.speciality && (
+                                                    <FormHelperText>
+                                                        {errors.speciality}
+                                                    </FormHelperText>
+                                                )}
                                             </FormControl>
-                                            <FormControl sx={{ flex: 1 }}>
+                                            <FormControl sx={{ flex: 1 }} error={!!errors.licenceID}>
                                                 <FormLabel>
                                                     License ID
                                                 </FormLabel>
                                                 <Input
-                                                    defaultValue={
-                                                        userStore.licenceID
-                                                    }
+                                                    value={licenceID}
+                                                    onChange={(e) => setLicenceID(e.target.value)}
                                                     required
                                                     startDecorator={
                                                         <NumbersIcon />
@@ -236,10 +375,15 @@ export default observer(function Profile() {
                                                     name='licenceID'
                                                     placeholder='License ID'
                                                 />
+                                                {errors.licenceID && (
+                                                    <FormHelperText>
+                                                        {errors.licenceID}
+                                                    </FormHelperText>
+                                                )}
                                             </FormControl>
                                         </Stack>
                                         <Stack direction='row' spacing={2}>
-                                            <FormControl sx={{ flex: 1 }}>
+                                            <FormControl sx={{ flex: 1 }} error={!!errors.officeLocation}>
                                                 <FormLabel>
                                                     Office Location
                                                 </FormLabel>
@@ -251,9 +395,8 @@ export default observer(function Profile() {
                                                     startDecorator={
                                                         <PinDropRounded />
                                                     }
-                                                    defaultValue={
-                                                        userStore.officeLocation
-                                                    }
+                                                    value={officeLocation}
+                                                    onChange={(_, newValue) => setOfficeLocation(newValue || '')}
                                                 >
                                                     {Object.keys(
                                                         OfficeLocation,
@@ -270,29 +413,47 @@ export default observer(function Profile() {
                                                         </Option>
                                                     ))}
                                                 </Select>
+                                                {errors.officeLocation && (
+                                                    <FormHelperText>
+                                                        {errors.officeLocation}
+                                                    </FormHelperText>
+                                                )}
                                             </FormControl>
-                                            <FormControl sx={{ flex: 1 }}>
+                                            <FormControl sx={{ flex: 1 }} error={!!errors.bio}>
                                                 <FormLabel>Bio</FormLabel>
                                                 <Textarea
-                                                    defaultValue={userStore.bio}
+                                                    value={bio}
+                                                    onChange={(e) => setBio(e.target.value)}
                                                     size='sm'
                                                     name='bio'
                                                     placeholder='Bio'
+                                                    minRows={3}
                                                 />
+                                                {errors.bio && (
+                                                    <FormHelperText>
+                                                        {errors.bio}
+                                                    </FormHelperText>
+                                                )}
                                             </FormControl>
                                         </Stack>
                                     </>
                                 ) : (
                                     <Stack direction='row' spacing={2}>
-                                        <FormControl sx={{ flex: 1 }}>
+                                        <FormControl sx={{ flex: 1 }} error={!!errors.amka}>
                                             <FormLabel>AMKA</FormLabel>
                                             <Input
-                                                defaultValue={userStore.amka}
+                                                value={amka}
+                                                onChange={(e) => setAmka(e.target.value)}
                                                 startDecorator={<NumbersIcon />}
                                                 size='sm'
                                                 name='amka'
                                                 placeholder='AMKA'
                                             />
+                                            {errors.amka && (
+                                                <FormHelperText>
+                                                    {errors.amka}
+                                                </FormHelperText>
+                                            )}
                                         </FormControl>
                                     </Stack>
                                 )}
