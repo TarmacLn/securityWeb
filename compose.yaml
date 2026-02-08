@@ -3,6 +3,7 @@ services:
     build: .
     ports:
       - 9191:9191
+      - 9192:9192
     extra_hosts:
       - "backend:host-gateway"
     healthcheck:
