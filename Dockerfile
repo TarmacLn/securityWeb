@@ -36,7 +36,7 @@ RUN npm run build
 
 
 # Run with nginx
-FROM nginx:1.28.0 AS final
+FROM nginx AS final
 
 
 # install tools
