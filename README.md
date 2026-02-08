@@ -1,54 +1,33 @@
 # Mediq Appointment Booking System
 
-## Instructions
+## Quick Start
 
-1. Install dependencies:
+### Install Docker
+
 ```bash
-bun install
+# Linux/macOS
+wget -qO get-docker.sh https://get.docker.com && sudo sh get-docker.sh
+
+# macOS (Homebrew)
+brew install --cask docker
 ```
 
-2. Start the development server:
+### Run Application
+
 ```bash
-bun run dev
+
+# Build and run (detached)
+docker compose up -d --build
+
+# Check status
+docker compose ps
+
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
 ```
 
-3. Build the project:
-```bash
-bun run build
-```
-
-# NGINX Configuration
-
-Provided example NGINX configuration for serving two react applications on different ports.
-
-```nginx
-map $server_port $site_root {
-    9191 html/mediq;
-    9595 html/mycamp;
-}
-
-server {
-    listen      9595;
-    listen      9191;
-    server_name localhost;
-
-    root $site_root;
-    index index.html;
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-
-    location /api/ {
-        rewrite ^/api/(.*)$ /$1 break;
-        proxy_pass http://localhost:7070/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-
-
-# After fork 
+**Access:** <https://localhost:9191>
 
