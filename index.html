@@ -37,7 +37,8 @@
 
 <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script nonce="NGINX_NONCE" type="module" src="/src/main.tsx"></script>
+    <script nonce="NGINX_NONCE">window.__CSP_NONCE__="NGINX_NONCE"</script>
 </body>
 
 </html>
